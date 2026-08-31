@@ -8,8 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Facility specification v1.0 (LEDG) over HTTP. Go 1.26.4; the only non-stdlib
 dependency so far is `github.com/maloquacious/semver`.
 
-The repository is early. Only `money/` and `version.go` exist as code; `internal/`
-is an empty placeholder. `docs/architecture.md` is the design of record and
+The repository is early. Only `money/`, `cerrs/`, and `version.go` exist as code;
+`internal/` is an empty placeholder. `docs/architecture.md` is the design of record and
 `api/openapi.yaml` is the public contract — read both before adding packages, and
 keep them updated when a decision changes. `docs/architecture.md` ends with an
 "Open Questions" section; those are genuinely undecided, so raise them rather than
@@ -50,6 +50,17 @@ Storage is SQLite via `zombiezen.com/go/sqlite` (not `database/sql`) with
 borrow one connection per request or unit of work from the pool. Migrations are
 embedded SQL and append-only after release.
 
+**Every connection must have WAL journal mode and `PRAGMA foreign_keys = ON`.**
+Both are per-connection settings in SQLite, and foreign keys are off by default,
+so a connection that skips them silently loses referential integrity. The store
+package owns this: it applies both when preparing a connection — in the pool's
+connection-init hook, so every borrowed connection is already configured — and no
+caller, service, test, or migration ever sets them itself. If you add a code path
+that opens a database, route it through the store's connection setup rather than
+opening SQLite directly. Store tests must exercise the same path, since the schema
+leans on foreign keys to enforce ledger, account, transaction, and entry
+relationships.
+
 ### Invariants the design exists to protect
 
 These come from the specification and drive both the schema and the service layer:
@@ -85,8 +96,7 @@ request body or a list operation.
 
 ## The money package
 
-`money` is written to stand alone (it carries its own full MIT header block, unlike
-the rest of the repo) and is currency-agnostic. `Money` is an unexported `int64` of
+`money` is currency-agnostic. `Money` is an unexported `int64` of
 minor units plus a `Currency`, so the zero value is deliberately not usable — build
 values with `NewMinor`, `MustNewMinor`, `ParseDecimal`, or `Zero`.
 
@@ -111,8 +121,19 @@ the ledger's reporting currency while allowing `orig_amount` to differ.
 
 - Tests use external test packages (`package money_test`), table-driven with named
   cases and `t.Run`.
-- Files outside `money/` use the short header
-  `// Copyright (c) <year> Michael D Henderson. All rights reserved.`
+- Every file starts with the one-line header
+  `// Copyright (c) <year> Michael D Henderson.` — no license block in source
+  files; `LICENSE` (MIT) covers the module.
+- Sentinel errors are untyped constants of `cerrs.Error` (a string type
+  implementing `error`), not `errors.New` vars, so they can be declared in `const`
+  blocks. Prefer them everywhere; wrap with `fmt.Errorf("%w: …", ErrX)` for
+  detail and match with `errors.Is`.
+- Declare a sentinel in the package that returns it (`money.ErrInvalidCurrency`).
+  Promote one to the domain layer only when more than one package needs to return
+  or match it — a specification error code shared by services and handlers is the
+  expected case. `cerrs` holds the `Error` type and only genuinely cross-cutting
+  values such as `ErrNotImplemented`; it is not a dumping ground for every
+  package's errors.
 - `version.go` returns a `semver.Version` for the whole module; bump it there.
 - Commit subjects are short and imperative ("Add currency-agnostic money package").
 - The OMG specification PDF lives in `docs/` for reference but is gitignored, as
