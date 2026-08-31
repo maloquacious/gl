@@ -1,0 +1,8 @@
+*~
+*.swp
+*.db
+*.db-*
+.DS_Store
+.env.local
+.env.*.local
+.idea/
