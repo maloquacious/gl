@@ -1316,19 +1316,50 @@ components:
 
     APIError:
       type: object
+      description: |
+        Error payload. Each member carries a member of the corresponding IDL
+        exception, so that a client loses nothing by speaking HTTP instead of
+        CORBA. The exceptions declare error, bad_value, bad_values, and
+        position_in_list; those arrive here as message, badValue, badValues, and
+        position respectively.
       required: [code, message]
       properties:
         code:
           $ref: "#/components/schemas/ErrorCode"
         message:
           type: string
+          description: |
+            Human-readable detail. Carries the IDL exception's error member,
+            which every exception declares.
+        badValue:
+          type: string
+          description: |
+            The value that was rejected, rendered as a string. Carries the IDL
+            bad_value member, declared by BadAccountId, BadAccountName,
+            BadChartKind, BadCurrencyMnemonic, BadDate, BadEntryType,
+            BadIntegritySelection, BadTransId, and UnknownLedger. Absent for
+            BadTransaction, BadTransactionsInList, CannotRemove, and
+            PermissionDenied, which declare no such member.
+        badValues:
+          type: array
+          description: |
+            The entry types that were rejected. Carries the bad_values member of
+            BadEntryTypeInfoList, the only exception declaring a list of
+            offending values, and set only with that code.
+          items:
+            $ref: "#/components/schemas/EntryTypeInfo"
         field:
           type: string
-          description: Optional request field path related to the error.
+          description: |
+            Optional request field path related to the error. A REST convenience
+            with no counterpart in the IDL; badValue is the specification's way
+            of pointing at what went wrong.
         position:
           type: integer
           minimum: 0
-          description: Optional zero-based list position for list operation errors.
+          description: |
+            Optional zero-based list position for list operation errors. Carries
+            the position_in_list member of BadTransactionsInList.
 
     ErrorCode:
       type: string

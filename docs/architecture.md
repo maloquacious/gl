@@ -307,9 +307,17 @@ Domain errors should preserve specification names:
 Each API error response should include:
 
 - `code`: the specification error name.
-- `message`: human-readable detail.
-- `field`: optional field path.
-- `position`: optional list position for list operations.
+- `message`: human-readable detail, from the exception's `error` member.
+- `badValue`: the value that was rejected, from the exception's `bad_value`
+  member. Nine of the fourteen exceptions declare one, so an error such as
+  `BadAccountId` names the account it rejected instead of only saying that some
+  account was bad.
+- `badValues`: the rejected entry types, from `BadEntryTypeInfoList.bad_values`.
+  This is the only exception carrying a list of offending values.
+- `position`: optional list position for list operations, from
+  `BadTransactionsInList.position_in_list`.
+- `field`: optional field path. This one has no counterpart in the IDL; it is a
+  REST convenience for locating a failure inside a request body.
 
 ## Integrity Checks
 

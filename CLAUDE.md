@@ -93,8 +93,15 @@ Error payloads preserve the IDL exception names in `code` (`BadAccountId`,
 is the `ErrorCode` enum). The same code can appear under different HTTP statuses —
 a missing account is 404 `BadAccountId`, a malformed one is 400 `BadAccountId`. So
 the HTTP status carries the transport meaning and `code` carries the specification
-meaning; keep both accurate. `field` and `position` locate the failure inside a
-request body or a list operation.
+meaning; keep both accurate.
+
+The other `APIError` members each carry an IDL exception member: `message` from
+`error`, `badValue` from `bad_value` (nine exceptions declare one), `badValues`
+from `BadEntryTypeInfoList.bad_values`, and `position` from
+`BadTransactionsInList.position_in_list`. Populate `badValue` whenever the
+exception declares it — an error that says which account was rejected is worth
+more than one that says an account was. `field` is the exception: a REST
+convenience with no IDL counterpart, for locating a failure in a request body.
 
 ## The money package
 

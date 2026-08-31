@@ -1,0 +1,308 @@
+#ifndef _FdGeneralLedger_
+#define _FdGeneralLedger_
+
+/*
+**
+** GENERAL LEDGER FACILITY IDL
+** Revision History as of October 1998.
+** 20-10-1998 Additions to Revised Submission - York.
+** 30-10-1998 Revision and Clarification - Manchester.
+** 31-10-1998 Logical corrections - Manchester.
+** 01-11-1998 Syntax errors corrected - Orbix 2.3 IDL compiler - Washington.
+** 09-11-1998 Additional items left out from York - Leamington Spa.
+** 10-11-1998 Minor revisions and clarifications - San Francisco.
+** 27-11-1998 co-submitters meeting - London.
+** 28-11-1998 through to 02-12-1998 - Manchester.
+** 03-12-1998 through to 06-12-1998 - Oslo.
+** 07-12-1998 through to 21-12-1998 - all co-submitters.
+**
+** LOCAL DEVIATIONS FROM THE PUBLISHED SPECIFICATION
+** 2.1.11 declares EntryTypeInfoList as sequence<EntryType>, colliding with
+** 2.1.15's sequence<EntryTypeInfo>. The 2.1.11 declaration is referenced
+** nowhere and is renamed here to EntryTypeList so the module compiles.
+*/
+
+#include <FbcCurrency.idl>
+#include <CBO.idl>
+
+module FdGeneralLedger {
+    // FORWARD DECLARATIONS
+    interface Arbitrator;        // establish client session
+    interface Profile;           // GL facility metadata
+    interface Retrieval;         // data acquisition
+    interface BookKeeping;       // data entry
+    interface LedgerLifecycle;   // lifecycle management
+    interface Integrity;         // data integrity checks
+    interface FacilityLifecycle; // Facility lifecycle management
+
+    // DATA TYPE DECLARATIONS
+    typedef FbcCurrency::Money      Money;
+    typedef sequence<wstring>       wstringList;
+    typedef wstring                 CurrencyMnemonic;  // ISO currency mnemonic
+    typedef wstring                 TransactionId;     // a transaction reference
+    typedef sequence<TransactionId> TransactionIdList;
+    typedef wstring                 EntryId;
+    typedef sequence<EntryId>       EntryIdList;
+    typedef wstring                 AccountId;
+    typedef sequence<AccountId>     AccountIdList;
+    typedef wstring                 EntryType;
+    typedef sequence<EntryType>     EntryTypeList;     // renamed from EntryTypeInfoList: the spec
+                                                       // declares that name twice, in 2.1.11 and
+                                                       // 2.1.15, with different element types.
+                                                       // 2.1.15 is the form every use site wants.
+    typedef wstring                 PeriodId;          // reference to a user defined accounting period
+
+    typedef unsigned short ChartKind;  // used to select a kind of new ledger schema
+    const ChartKind EMPTY_CHART     = 1;
+    const ChartKind DEFAULT_CHART   = 2;
+    const ChartKind EXISTING_CHART  = 3;
+
+    enum DebitOrCredit { CREDIT, DEBIT }; // an entry is either a credit or a debit
+
+    struct Date {            // Used for all date fields
+        CBO::DTime  setting; // Does not allow "not set" dates
+        boolean     is_set;  // Needed for any useful date data type
+    };
+    struct DateRange {  // specifies date ranges for purposes of retrieval
+        Date start_date;
+        Date end_date;
+    };
+
+    struct AccountInfo {
+        AccountId   acc_id;          // account reference
+        wstring     acc_description; // account name
+    };
+    typedef sequence<AccountInfo> AccountInfoList;
+
+    struct Account { // metadata describing an account
+        AccountInfo acc_info;           // account reference and name
+        boolean     is_control_account; // control accounts maintain running balances
+        Money       balance;            // accumulated balance as of "current" date
+    };
+    typedef sequence<Account> AccountList; // List of accounts
+
+    struct TransactionInfo { // Summary information about a transaction
+        TransactionId   trans_id;       // Transaction reference
+        wstring         voucher_ref;    // documentation of transaction
+        Date            voucher_date;   // Date of initiating action that causes the posting
+        Date            act_trans_date; // Date of transaction posting - used for retrieval purposes
+        PeriodId        period_id;
+    };
+    typedef sequence<TransactionInfo> TransactionInfoList;
+
+    struct Entry { // GL accounting entry information
+        TransactionId   trans_id;       // This entry is part of this transaction
+        EntryId         entry_id;       // audit trail number for this entry
+        Date            entry_date;     // Date of entry posting
+        EntryType       entry_type;     // e.g. JournalCredit, JournalDebit etc.
+        AccountId       acc_id;         // reference
+        Money           orig_amount;    // original amount in this currency
+        Money           amount;         // Quantity and currency units of this entry
+        DebitOrCredit   dr_cr;          // Debit or Credit GL Account
+        wstring         description;    // annotation describing the entry
+        wstring         voucher_ref;    // reference to documentation of entry
+    };
+    typedef sequence<Entry> EntryList; // List of accounting entries
+
+    struct Transaction { // GL accounting transaction information
+        TransactionInfo trans_info; // Summary information about transaction
+        EntryList       entries;    // Entries comprising the transaction
+    };
+    typedef sequence<Transaction> TransactionList; // List of transactions
+
+    struct EntryTypeInfo {
+        EntryType   type;           // mnemonic of GL Entry type
+        wstring     description;    // Journal Debit, Credit etc
+    };
+    typedef sequence<EntryTypeInfo> EntryTypeInfoList;
+
+    // EXCEPTION DECLARATIONS
+    exception BadDate {
+        wstring error;
+        Date    bad_value;
+    };
+    exception BadChartKind {
+        wstring     error;
+        ChartKind   bad_value;
+    };
+    exception BadTransaction {
+        wstring error;
+    };
+    exception BadTransactionsInList {
+        wstring         error;
+        unsigned long   position_in_list;
+    };
+    exception BadEntryType {
+        wstring     error;
+        EntryType   bad_value;
+    };
+    exception BadEntryTypeInfoList {
+        wstring             error;
+        EntryTypeInfoList   bad_values;
+    };
+    exception BadCurrencyMnemonic {
+        wstring             error;
+        CurrencyMnemonic    bad_value;
+    };
+    exception BadAccountId {
+        wstring     error;
+        AccountId   bad_value;
+    };
+    exception BadTransId {
+        wstring         error;
+        TransactionId   bad_value;
+    };
+    exception CannotRemove {
+        wstring error;
+    };
+    exception PermissionDenied {
+        wstring error;
+    };
+    exception UnknownLedger {
+        wstring error;
+        wstring bad_value;
+    };
+    exception BadIntegritySelection {
+        wstring error;
+        wstring bad_value;
+    };
+    exception BadAccountName {
+        wstring error;
+        wstring bad_value;
+    };
+
+    // INTERFACE DECLARATIONS
+    interface Arbitrator {
+        wstringList get_ledger_names(); // Returns names of available ledgers.
+        Profile open_session (          // Initiate client session on a specified General Ledger.
+            in wstring ledger_name,
+            in wstring login_name,
+            in wstring password
+        ) raises ( UnknownLedger, PermissionDenied );
+    };
+
+    interface Profile {
+        void close_session(); // End this client session, reclaiming session resources and state
+
+        // GL FRAMEWORK OPERATIONS
+        BookKeeping       book_keeping()        raises ( PermissionDenied ); // Get bookkeeping object reference
+        Retrieval         retrieval()           raises ( PermissionDenied ); // Get retrieval service reference
+        Integrity         integrity()           raises ( PermissionDenied ); // Get integrity service reference
+        LedgerLifecycle   ledger_lifecycle()    raises ( PermissionDenied ); // Get ledger lifecycle service reference
+        FacilityLifecycle facility_lifecycle()  raises ( PermissionDenied ); // Get facility lifecycle service reference
+
+        // PROFILE INFORMATION
+        CurrencyMnemonic  get_ledger_currency() raises ( PermissionDenied ); // Principal currency used in current ledger
+        EntryTypeInfoList get_entry_types()     raises ( PermissionDenied ); // Retrieve list of defined entry types
+    };
+
+    interface Retrieval {
+        // ACCOUNT METADATA RETRIEVAL
+        AccountInfoList get_all_account_info(); // Retrieve account information.
+        Account get_account ( // Retrieve description of an account
+            in AccountId acc_id
+        ) raises ( BadAccountId, PermissionDenied );
+        AccountList get_multiple_accounts ( // Retrieve description for several accounts
+            in AccountIdList account_ids
+        ) raises ( BadAccountId, PermissionDenied );
+        AccountList get_all_accounts ( // Retrieve all account summaries
+        ) raises ( PermissionDenied );
+
+        // TRANSACTION AND ENTRY METADATA
+        TransactionIdList get_trans_ids ( // Retrieve number and list of account transaction references in the specified data range
+            in DateRange date_range
+        ) raises ( BadDate, PermissionDenied );
+        TransactionInfo get_trans_info_summary ( // Retrieve a transaction summary
+            in TransactionId trans_id
+        ) raises ( BadTransId, PermissionDenied );
+        TransactionInfoList get_trans_info_by_refs ( // Retrieve a specific list of transaction references
+            in TransactionIdList trans_ids
+        ) raises ( BadTransId, PermissionDenied );
+        TransactionInfoList get_trans_info_by_date ( // Retrieve transaction summaries from the specified date range
+            in DateRange date_range
+        ) raises ( BadDate, PermissionDenied );
+        unsigned long get_entry_count_by_type ( // Retrieve the count of entries with the indicated entry type (within the specified date range)
+            in DateRange date_range,
+            in EntryType entry_type
+        ) raises ( BadDate, BadEntryType, PermissionDenied );
+        unsigned long get_entry_count_by_account ( // Retrieve the count of entries for an account within a date range
+            in DateRange date_range,
+            in AccountId acc_id
+        ) raises ( BadDate, BadAccountId, PermissionDenied );
+
+        // TRANSACTION AND ENTRY RETRIEVAL
+        Transaction get_transaction ( // Retrieve a transaction info and its entries
+            in TransactionId trans_id
+        ) raises ( BadTransId, PermissionDenied );
+        TransactionList get_transactions_by_ids ( // Retrieve a list of transactions by reference number
+            in TransactionIdList trans_ids
+        ) raises ( BadTransId, PermissionDenied );
+        TransactionList get_transactions_by_date ( // Retrieve a list of transactions with entries within a date range
+            in DateRange date_range
+        ) raises ( BadDate, PermissionDenied );
+        EntryList get_entries_by_type ( // Retrieve a list of entries with the indicated entry type
+            in DateRange date_range,
+            in EntryType entry_type
+        ) raises ( BadDate, BadEntryType, PermissionDenied );
+        EntryList get_entries_by_account ( // Retrieve a list of entries for an account (within a date range)
+            in DateRange date_range,
+            in AccountId acc_id
+        ) raises ( BadDate, BadAccountId, PermissionDenied );
+    };
+
+    interface BookKeeping {
+        // Each transaction is balanced. The sum of debits and credits balance.
+        TransactionId post_transaction ( // Post a transaction to the GL persistently - including one or more related entries
+            in Transaction single_transaction
+        ) raises ( BadTransaction, PermissionDenied );
+        TransactionIdList post_transaction_list ( // Post several transactions to the GL persistently - including one or more sets of related entries
+            in TransactionList transactions
+        ) raises ( BadTransactionsInList, PermissionDenied );
+    };
+
+    interface LedgerLifecycle {
+        // GL ACCOUNT LIFECYCLE
+        void create_account ( // add a new account to the ledger schema
+            in AccountId    acc_id,
+            in wstring      acc_description,
+            in boolean      is_control_account
+        ) raises ( BadAccountId, BadAccountName, PermissionDenied );
+        void removeAccount ( // Remove an account description from the ledger schema
+            in AccountId acc_id
+        ) raises ( BadAccountId, CannotRemove, PermissionDenied );
+        void modify_account ( // Modify an account description
+            in AccountId    acc_id,
+            in wstring      new_acc_description
+        ) raises ( BadAccountId, BadAccountName, PermissionDenied );
+
+        // LEDGER METADATA MANAGEMENT
+        void set_ledger_currency ( // Specify the principal currency for this ledger
+            in CurrencyMnemonic currency_mnemonic
+        ) raises ( BadCurrencyMnemonic, PermissionDenied );
+        void set_entry_types ( // Establish or revise a set of entry types
+            in EntryTypeInfoList entry_types
+        ) raises ( BadEntryTypeInfoList, PermissionDenied );
+    };
+
+    interface Integrity {
+        wstringList get_dynamic_selection ( // Retrieve a list of integrity checking options
+        ) raises ( PermissionDenied );
+        boolean check_integrity ( // Verify the integrity of the ledger data and/or metadata
+            in wstring integrity_check
+        ) raises ( BadIntegritySelection, PermissionDenied );
+    };
+
+    interface FacilityLifecycle {
+        // LEDGER/CHART OF ACCOUNTS LIFECYCLE
+        void create_ledger_chart_of_accounts ( // add a new ledger to this facility instance
+            in wstring      new_ledger_name,
+            in ChartKind    chart_of_accounts_schema,
+            in wstring      copied_ledger_name_for_schema
+        ) raises ( UnknownLedger, BadChartKind, PermissionDenied );
+        void remove_ledger ( // Delete a ledger from this facility instance
+            in wstring ledger_name
+        ) raises ( UnknownLedger, CannotRemove, PermissionDenied );
+    };
+}; // end of module FdGeneralLedger
+
+#endif
