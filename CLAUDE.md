@@ -8,8 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Facility specification v1.0 (LEDG) over HTTP. Go 1.26.4; the only non-stdlib
 dependency so far is `github.com/maloquacious/semver`.
 
-The repository is early. Only `money/`, `cerrs/`, and `version.go` exist as code;
-`internal/` is an empty placeholder. `docs/architecture.md` is the design of record and
+The repository is early. `money/`, `cerrs/`, `version.go`, and `internal/domain/`
+exist as code; the rest of `internal/` is still a placeholder. `docs/architecture.md` is the design of record and
 `api/openapi.yaml` is the public contract — read both before adding packages, and
 keep them updated when a decision changes. `docs/architecture.md` ends with a
 "Decisions" section recording the choices that shape the schema and the contract —
@@ -125,6 +125,37 @@ Conventions to follow when extending it:
 Ledger entries carry two money values: `orig_amount` in the source currency and
 `amount` in the ledger reporting currency. Services validate that `amount` matches
 the ledger's reporting currency while allowing `orig_amount` to differ.
+
+## The domain package
+
+`internal/domain` is the specification's vocabulary in Go: identifiers, dates,
+chart kinds, entry types, accounts, transactions, entries, capabilities, and the
+errors. It knows nothing about HTTP or SQLite, and it holds the accounting rules
+that are worth testing without either.
+
+- The fourteen error constants are the `ErrorCode` enum, and each constant's text
+  *is* the code (`ErrBadAccountID = cerrs.Error("BadAccountId")`). `domain.Code`
+  recovers the code from any error; an empty result means the failure has no
+  specification meaning and belongs in a 500.
+- `Fault` is an error carrying the members of the exception it stands for -
+  message, `badValue`, `badValues`, `position`, plus the REST-only `field`. Build
+  errors with `Faultf(ErrX, ...).WithBadValue(...)` rather than `fmt.Errorf`
+  whenever the exception declares a `bad_value`; a Fault unwraps to its sentinel,
+  so `errors.Is` still works. `field` paths are contract spellings and nest, as in
+  `entries[1].entryType`.
+- Identifiers are named string types with validating constructors that report the
+  code belonging to that identifier (`NewAccountID` reports `BadAccountId`,
+  `NewLedgerName` reports `UnknownLedger`, which is all the specification gives
+  it). An identifier must be non-empty, unpadded, and free of control characters.
+- The zero `Date` is the unset one, so the zero `DateRange` is already unbounded,
+  and both bounds are inclusive. An unset date has no position in time: it orders
+  against nothing and no range contains it.
+- `Transaction.Validate` checks shape, currency, and balance; it cannot check
+  existence. That each account and entry type belongs to the ledger is the
+  service's job, because only the store knows the chart of accounts.
+- `SequenceEntries` fixes audit trail order: client order is preserved except that
+  a debit precedes a credit on the same account, and only that account's positions
+  move.
 
 ## Conventions
 

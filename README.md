@@ -28,18 +28,18 @@ ignored by git.
 
 ## Status
 
-The OpenAPI contract and the design decisions behind it are settled. `money` and
-`cerrs` are implemented. The server itself is not started yet: step 1 below is the
-next piece of work.
+The OpenAPI contract and the design decisions behind it are settled. `money`,
+`cerrs`, and `internal/domain` are implemented. The server itself is not started
+yet: step 2 below is the next piece of work.
 
 ## Implementation Plan
 
 Each step carries its own tests. Testing is not a later phase.
 
-1. **Domain package.** `internal/domain` defines identifiers, dates with optional
-   inclusive bounds, entry types, chart kinds, debit and credit, and the domain
-   errors, declared as `cerrs.Error` constants mirroring the OpenAPI `ErrorCode`
-   enum. Reuses `money` as it stands.
+1. **Domain package.** Done. `internal/domain` defines identifiers, dates with
+   optional inclusive bounds, entry types, chart kinds, debit and credit, and the
+   domain errors, declared as `cerrs.Error` constants mirroring the OpenAPI
+   `ErrorCode` enum. Reuses `money` as it stands.
 2. **Store connection setup and the initial migration.** `internal/store/sqlite`
    opens a `zombiezen.com/go/sqlite` pool whose connection-init hook applies WAL,
    `PRAGMA foreign_keys = ON`, and a busy timeout, so every borrowed connection is
