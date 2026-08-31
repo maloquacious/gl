@@ -11,9 +11,11 @@ dependency so far is `github.com/maloquacious/semver`.
 The repository is early. Only `money/`, `cerrs/`, and `version.go` exist as code;
 `internal/` is an empty placeholder. `docs/architecture.md` is the design of record and
 `api/openapi.yaml` is the public contract — read both before adding packages, and
-keep them updated when a decision changes. `docs/architecture.md` ends with an
-"Open Questions" section; those are genuinely undecided, so raise them rather than
-silently picking an answer.
+keep them updated when a decision changes. `docs/architecture.md` ends with a
+"Decisions" section recording the choices that shape the schema and the contract —
+identifier allocation, authentication, balance storage, money representation, and
+removal semantics. Those are settled; follow them, and if one needs to change, say so
+rather than working around it. `README.md` carries the ordered implementation plan.
 
 ## Commands
 

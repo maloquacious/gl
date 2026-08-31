@@ -72,6 +72,17 @@ paths:
       tags: [FacilityLifecycle]
       operationId: createLedgerChartOfAccounts
       summary: Create a new ledger and chart of accounts.
+      description: |
+        Creates a ledger and its chart of accounts.
+
+        The specification operation takes no reporting currency, so a ledger
+        created without the optional currency member has no reporting currency
+        and cannot accept postings until setLedgerCurrency is called. Supplying
+        currency here is an extension that makes the ledger postable immediately.
+
+        This operation requires a session whose principal holds the
+        facilityLifecycle capability. It acts on the facility rather than on one
+        ledger, so the ledger bound to the session is not consulted.
       requestBody:
         required: true
         content:
@@ -93,11 +104,28 @@ paths:
       tags: [FacilityLifecycle]
       operationId: removeLedger
       summary: Remove a ledger.
+      description: |
+        Removes a ledger from the facility. A ledger that holds transactions or
+        entries cannot be removed and returns CannotRemove.
+
+        This operation requires a session whose principal holds the
+        facilityLifecycle capability. It acts on the facility rather than on one
+        ledger, so the ledger bound to the session is not consulted.
       parameters:
         - $ref: "#/components/parameters/LedgerName"
       responses:
         "204":
           description: Ledger removed.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         default:
           $ref: "#/components/responses/Error"
 
@@ -255,6 +283,10 @@ paths:
       tags: [Retrieval]
       operationId: getMultipleAccounts
       summary: Retrieve selected account summaries.
+      description: |
+        Retrieves several account summaries in one call. Because this path shares
+        a prefix with /accounts/{accountId}, the literal segment "batch" is
+        reserved and cannot be used as an account identifier.
       requestBody:
         required: true
         content:
@@ -298,6 +330,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         default:
           $ref: "#/components/responses/Error"
     patch:
@@ -330,6 +370,16 @@ paths:
       responses:
         "204":
           description: Account removed.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         default:
           $ref: "#/components/responses/Error"
 
@@ -423,6 +473,11 @@ paths:
       tags: [Retrieval]
       operationId: getTransInfoByRefs
       summary: Retrieve transaction summaries by IDs.
+      description: |
+        Retrieves several transaction summaries in one call. Because this path
+        shares a prefix with /transaction-info/{transactionId}, the literal
+        segment "batch" is reserved and cannot be used as a transaction
+        identifier.
       requestBody:
         required: true
         content:
@@ -503,6 +558,15 @@ paths:
       tags: [BookKeeping]
       operationId: postTransaction
       summary: Post one balanced transaction.
+      description: |
+        Posts a single balanced transaction to the ledger bound to the session.
+        The transaction, its entries, and the affected account balances are
+        written atomically.
+
+        Every entry amount must be denominated in the ledger reporting currency,
+        so posting fails with BadCurrencyMnemonic until the ledger has one set.
+        The server allocates the transaction reference and every entry
+        reference, and returns the transaction reference.
       requestBody:
         required: true
         content:
@@ -520,6 +584,16 @@ paths:
                 properties:
                   transactionId:
                     $ref: "#/components/schemas/TransactionId"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         default:
           $ref: "#/components/responses/Error"
 
@@ -555,6 +629,11 @@ paths:
       tags: [Retrieval]
       operationId: getTransactionsByIds
       summary: Retrieve transactions by IDs.
+      description: |
+        Retrieves several transactions in one call. Because this path shares a
+        prefix with /transactions/{transactionId}, the literal segment "by-ids"
+        is reserved and cannot be used as a transaction identifier. The segment
+        "batch" is likewise reserved by /transactions/batch.
       requestBody:
         required: true
         content:
@@ -727,11 +806,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required: [passed]
-                properties:
-                  passed:
-                    type: boolean
+                $ref: "#/components/schemas/IntegrityCheckResult"
         default:
           $ref: "#/components/responses/Error"
 
@@ -771,19 +846,72 @@ components:
     StartDate:
       name: startDate
       in: query
-      required: true
+      required: false
+      description: |
+        Inclusive lower bound of the date range. Omit the parameter to leave the
+        bound unset, which is the REST equivalent of the specification's Date
+        is_set flag being FALSE; an unset lower bound means "from the beginning
+        of the ledger."
       schema:
         $ref: "#/components/schemas/Date"
     EndDate:
       name: endDate
       in: query
-      required: true
+      required: false
+      description: |
+        Inclusive upper bound of the date range. Omit the parameter to leave the
+        bound unset, which is the REST equivalent of the specification's Date
+        is_set flag being FALSE; an unset upper bound means "through the most
+        recent posting."
       schema:
         $ref: "#/components/schemas/Date"
 
   responses:
     Error:
-      description: Error response.
+      description: |
+        Error response. The HTTP status carries the transport meaning and the
+        APIError code carries the specification meaning, so the same code may
+        appear under more than one status.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    BadRequest:
+      description: |
+        The request was malformed or carried invalid values. Typical codes are
+        BadAccountId, BadAccountName, BadDate, BadTransaction, BadEntryType,
+        BadChartKind, BadCurrencyMnemonic, and BadIntegritySelection.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    Unauthorized:
+      description: |
+        No valid session token was supplied. The code is PermissionDenied.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    Forbidden:
+      description: |
+        The session principal lacks the capability this operation requires. The
+        code is PermissionDenied.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    NotFound:
+      description: |
+        The addressed resource does not exist. Typical codes are BadAccountId,
+        BadTransId, and UnknownLedger.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    Conflict:
+      description: |
+        The request conflicts with the current state of the ledger. Typical codes
+        are CannotRemove and BadTransaction.
       content:
         application/json:
           schema:
@@ -815,7 +943,7 @@ components:
 
     Session:
       type: object
-      required: [token, ledgerName]
+      required: [token, ledgerName, expiresAt]
       properties:
         token:
           type: string
@@ -869,6 +997,8 @@ components:
         copiedLedgerNameForSchema:
           type: string
           description: Required when chartOfAccountsSchema is EXISTING_CHART.
+        currency:
+          $ref: "#/components/schemas/CurrencyMnemonic"
 
     CreateAccountRequest:
       type: object
@@ -942,7 +1072,7 @@ components:
       required: [transaction]
       properties:
         transaction:
-          $ref: "#/components/schemas/Transaction"
+          $ref: "#/components/schemas/NewTransaction"
 
     PostTransactionListRequest:
       type: object
@@ -952,7 +1082,76 @@ components:
           type: array
           minItems: 1
           items:
-            $ref: "#/components/schemas/Transaction"
+            $ref: "#/components/schemas/NewTransaction"
+
+    NewTransactionInfo:
+      type: object
+      description: |
+        Transaction summary information supplied when posting. This server
+        allocates transaction references itself, as permitted by specification
+        section 2.1.7, so transactionId is not accepted on input. Use voucherRef
+        to correlate a posted transaction with its source document.
+      properties:
+        voucherRef:
+          type: string
+        voucherDate:
+          $ref: "#/components/schemas/Date"
+        actualTransactionDate:
+          $ref: "#/components/schemas/Date"
+        periodId:
+          $ref: "#/components/schemas/PeriodId"
+
+    NewTransaction:
+      type: object
+      description: |
+        A GL transaction supplied for posting. Its entries must balance in the
+        ledger reporting currency. Entry order is preserved as the audit trail
+        order; when a transaction debits and credits the same account, the debit
+        entry must appear before the credit entry.
+      required: [transactionInfo, entries]
+      properties:
+        transactionInfo:
+          $ref: "#/components/schemas/NewTransactionInfo"
+        entries:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/NewEntry"
+
+    NewEntry:
+      type: object
+      description: |
+        A GL entry supplied when posting. The entry identifier and the parent
+        transaction identifier are both allocated by the server and are not
+        accepted on input.
+
+        The amount member must be denominated in the ledger reporting currency.
+        The originalAmount member records the source currency amount and may
+        differ; the server performs no currency conversion between them.
+      required:
+        - entryDate
+        - entryType
+        - accountId
+        - originalAmount
+        - amount
+        - debitOrCredit
+      properties:
+        entryDate:
+          $ref: "#/components/schemas/Date"
+        entryType:
+          $ref: "#/components/schemas/EntryType"
+        accountId:
+          $ref: "#/components/schemas/AccountId"
+        originalAmount:
+          $ref: "#/components/schemas/Money"
+        amount:
+          $ref: "#/components/schemas/Money"
+        debitOrCredit:
+          $ref: "#/components/schemas/DebitOrCredit"
+        description:
+          type: string
+        voucherRef:
+          type: string
 
     Entry:
       type: object
@@ -1004,12 +1203,57 @@ components:
           type: integer
           minimum: 0
 
+    IntegrityCheckResult:
+      type: object
+      description: |
+        Outcome of one integrity check. The specification operation returns only a
+        boolean; passed carries that contract, and the remaining members are an
+        additive extension so that an operator can act on a failure.
+      required: [passed]
+      properties:
+        passed:
+          type: boolean
+        check:
+          type: string
+          description: Name of the check that was run.
+        checkedAt:
+          type: string
+          format: date-time
+        failures:
+          type: array
+          description: |
+            Detail for each violation found. Absent or empty when passed is true.
+            A check may cap the number of failures it reports.
+          items:
+            $ref: "#/components/schemas/IntegrityFailure"
+
+    IntegrityFailure:
+      type: object
+      required: [kind, message]
+      properties:
+        kind:
+          type: string
+          description: Stable identifier for the class of violation.
+        message:
+          type: string
+        ledgerName:
+          type: string
+        accountId:
+          $ref: "#/components/schemas/AccountId"
+        transactionId:
+          $ref: "#/components/schemas/TransactionId"
+        entryId:
+          $ref: "#/components/schemas/EntryId"
+
     Money:
       type: object
       required: [amount, currency]
       description: |
-        Exact monetary amount. The amount is encoded as a canonical decimal string
-        until the implementation finalizes minor-unit scale rules per currency.
+        Exact monetary amount, never a floating point value. The amount is encoded
+        as a canonical decimal string whose fractional digit count is the scale
+        registered for the currency; the server stores it internally as an exact
+        integer number of minor units. A currency the server has not registered is
+        rejected with BadCurrencyMnemonic.
       properties:
         amount:
           type: string
@@ -1022,8 +1266,15 @@ components:
       type: string
       format: date-time
       description: |
-        Date/time value used for ledger retrieval and posting. The implementation
-        may later add explicit support for the specification's not-set date flag.
+        Date/time value used for ledger retrieval and posting.
+
+        Date ranges are inclusive of both bounds, per specification section
+        2.1.12: "The DateRange data type is inclusive of both a start_date and
+        end_date."
+
+        The specification's Date carries an is_set flag so that a bound may be
+        left unset. The REST adaptation of an unset bound is an omitted query
+        parameter rather than a sentinel value.
 
     AccountId:
       type: string
