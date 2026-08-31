@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Michael D Henderson. All rights reserved.
+// Copyright (c) 2026 Michael D Henderson.
 
 package gl
 
