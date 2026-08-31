@@ -1,0 +1,1098 @@
+openapi: 3.1.0
+info:
+  title: OMG General Ledger Server API
+  version: 0.1.0
+  summary: REST adaptation of the OMG General Ledger Facility v1.0.
+  description: |
+    This API exposes the service semantics of the OMG General Ledger Facility
+    specification v1.0 over HTTP. The API keeps the specification's domain names
+    and exception names where practical while adapting CORBA session-oriented
+    interfaces to REST resources.
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: Arbitrator
+    description: Ledger discovery and session establishment.
+  - name: Profile
+    description: Session-scoped metadata and service access.
+  - name: Retrieval
+    description: Account, transaction, and entry retrieval.
+  - name: BookKeeping
+    description: Posting balanced accounting transactions.
+  - name: LedgerLifecycle
+    description: Chart of accounts and ledger metadata administration.
+  - name: Integrity
+    description: Ledger integrity check discovery and execution.
+  - name: FacilityLifecycle
+    description: Ledger creation and removal.
+  - name: System
+    description: Operational endpoints.
+
+security:
+  - sessionToken: []
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      operationId: getHealth
+      security: []
+      summary: Check server and store health.
+      responses:
+        "200":
+          description: Server is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+  /ledgers:
+    get:
+      tags: [Arbitrator]
+      operationId: getLedgerNames
+      security: []
+      summary: List available ledger names.
+      responses:
+        "200":
+          description: Available ledger names.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ledgers]
+                properties:
+                  ledgers:
+                    type: array
+                    items:
+                      type: string
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [FacilityLifecycle]
+      operationId: createLedgerChartOfAccounts
+      summary: Create a new ledger and chart of accounts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLedgerRequest"
+      responses:
+        "201":
+          description: Ledger created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ledger"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /ledgers/{ledgerName}:
+    delete:
+      tags: [FacilityLifecycle]
+      operationId: removeLedger
+      summary: Remove a ledger.
+      parameters:
+        - $ref: "#/components/parameters/LedgerName"
+      responses:
+        "204":
+          description: Ledger removed.
+        default:
+          $ref: "#/components/responses/Error"
+
+  /sessions:
+    post:
+      tags: [Arbitrator]
+      operationId: openSession
+      security: []
+      summary: Open a session for a ledger.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenSessionRequest"
+      responses:
+        "201":
+          description: Session opened.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /sessions/current:
+    delete:
+      tags: [Profile]
+      operationId: closeSession
+      summary: Close the current session.
+      responses:
+        "204":
+          description: Session closed.
+        default:
+          $ref: "#/components/responses/Error"
+
+  /profile:
+    get:
+      tags: [Profile]
+      operationId: getProfile
+      summary: Retrieve metadata for the current session.
+      responses:
+        "200":
+          description: Session profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /profile/ledger-currency:
+    get:
+      tags: [Profile]
+      operationId: getLedgerCurrency
+      summary: Retrieve the reporting currency for the current ledger.
+      responses:
+        "200":
+          description: Ledger reporting currency.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [currency]
+                properties:
+                  currency:
+                    $ref: "#/components/schemas/CurrencyMnemonic"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /profile/entry-types:
+    get:
+      tags: [Profile]
+      operationId: getEntryTypes
+      summary: Retrieve entry types for the current ledger.
+      responses:
+        "200":
+          description: Entry types.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entryTypes]
+                properties:
+                  entryTypes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/EntryTypeInfo"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /accounts:
+    get:
+      tags: [Retrieval]
+      operationId: getAllAccounts
+      summary: Retrieve all account summaries for the current ledger.
+      responses:
+        "200":
+          description: Account summaries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accounts]
+                properties:
+                  accounts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Account"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [LedgerLifecycle]
+      operationId: createAccount
+      summary: Create an account in the current ledger.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountRequest"
+      responses:
+        "201":
+          description: Account created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /account-info:
+    get:
+      tags: [Retrieval]
+      operationId: getAllAccountInfo
+      summary: Retrieve account identifiers and descriptions for the current ledger.
+      responses:
+        "200":
+          description: Account info list.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accounts]
+                properties:
+                  accounts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AccountInfo"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /accounts/batch:
+    post:
+      tags: [Retrieval]
+      operationId: getMultipleAccounts
+      summary: Retrieve selected account summaries.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accountIds]
+              properties:
+                accountIds:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/AccountId"
+      responses:
+        "200":
+          description: Account summaries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accounts]
+                properties:
+                  accounts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Account"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /accounts/{accountId}:
+    get:
+      tags: [Retrieval]
+      operationId: getAccount
+      summary: Retrieve one account summary.
+      parameters:
+        - $ref: "#/components/parameters/AccountId"
+      responses:
+        "200":
+          description: Account summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      tags: [LedgerLifecycle]
+      operationId: modifyAccount
+      summary: Modify an account description.
+      parameters:
+        - $ref: "#/components/parameters/AccountId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModifyAccountRequest"
+      responses:
+        "200":
+          description: Account modified.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [LedgerLifecycle]
+      operationId: removeAccount
+      summary: Remove an unused account.
+      parameters:
+        - $ref: "#/components/parameters/AccountId"
+      responses:
+        "204":
+          description: Account removed.
+        default:
+          $ref: "#/components/responses/Error"
+
+  /ledger-currency:
+    put:
+      tags: [LedgerLifecycle]
+      operationId: setLedgerCurrency
+      summary: Set the reporting currency for the current ledger.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currency]
+              properties:
+                currency:
+                  $ref: "#/components/schemas/CurrencyMnemonic"
+      responses:
+        "204":
+          description: Ledger currency set.
+        default:
+          $ref: "#/components/responses/Error"
+
+  /entry-types:
+    put:
+      tags: [LedgerLifecycle]
+      operationId: setEntryTypes
+      summary: Replace the entry type list for the current ledger.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entryTypes]
+              properties:
+                entryTypes:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/EntryTypeInfo"
+      responses:
+        "204":
+          description: Entry types set.
+        default:
+          $ref: "#/components/responses/Error"
+
+  /transaction-ids:
+    get:
+      tags: [Retrieval]
+      operationId: getTransIds
+      summary: Retrieve transaction IDs by date range.
+      parameters:
+        - $ref: "#/components/parameters/StartDate"
+        - $ref: "#/components/parameters/EndDate"
+      responses:
+        "200":
+          description: Transaction IDs.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transactionIds]
+                properties:
+                  transactionIds:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TransactionId"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /transaction-info/{transactionId}:
+    get:
+      tags: [Retrieval]
+      operationId: getTransInfoSummary
+      summary: Retrieve one transaction summary.
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      responses:
+        "200":
+          description: Transaction summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionInfo"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /transaction-info/batch:
+    post:
+      tags: [Retrieval]
+      operationId: getTransInfoByRefs
+      summary: Retrieve transaction summaries by IDs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transactionIds]
+              properties:
+                transactionIds:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/TransactionId"
+      responses:
+        "200":
+          description: Transaction summaries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transactions]
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TransactionInfo"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /transaction-info:
+    get:
+      tags: [Retrieval]
+      operationId: getTransInfoByDate
+      summary: Retrieve transaction summaries by date range.
+      parameters:
+        - $ref: "#/components/parameters/StartDate"
+        - $ref: "#/components/parameters/EndDate"
+      responses:
+        "200":
+          description: Transaction summaries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transactions]
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TransactionInfo"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /transactions:
+    get:
+      tags: [Retrieval]
+      operationId: getTransactionsByDate
+      summary: Retrieve transactions by date range.
+      parameters:
+        - $ref: "#/components/parameters/StartDate"
+        - $ref: "#/components/parameters/EndDate"
+      responses:
+        "200":
+          description: Transactions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transactions]
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Transaction"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [BookKeeping]
+      operationId: postTransaction
+      summary: Post one balanced transaction.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostTransactionRequest"
+      responses:
+        "201":
+          description: Transaction posted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transactionId]
+                properties:
+                  transactionId:
+                    $ref: "#/components/schemas/TransactionId"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /transactions/batch:
+    post:
+      tags: [BookKeeping]
+      operationId: postTransactionList
+      summary: Post a list of balanced transactions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostTransactionListRequest"
+      responses:
+        "201":
+          description: Transactions posted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transactionIds]
+                properties:
+                  transactionIds:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TransactionId"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /transactions/by-ids:
+    post:
+      tags: [Retrieval]
+      operationId: getTransactionsByIds
+      summary: Retrieve transactions by IDs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transactionIds]
+              properties:
+                transactionIds:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: "#/components/schemas/TransactionId"
+      responses:
+        "200":
+          description: Transactions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transactions]
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Transaction"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /transactions/{transactionId}:
+    get:
+      tags: [Retrieval]
+      operationId: getTransaction
+      summary: Retrieve one transaction and its entries.
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      responses:
+        "200":
+          description: Transaction.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /entries/by-account/{accountId}:
+    get:
+      tags: [Retrieval]
+      operationId: getEntriesByAccount
+      summary: Retrieve entries for an account by date range.
+      parameters:
+        - $ref: "#/components/parameters/AccountId"
+        - $ref: "#/components/parameters/StartDate"
+        - $ref: "#/components/parameters/EndDate"
+      responses:
+        "200":
+          description: Entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries]
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Entry"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /entries/by-type/{entryType}:
+    get:
+      tags: [Retrieval]
+      operationId: getEntriesByType
+      summary: Retrieve entries for an entry type by date range.
+      parameters:
+        - $ref: "#/components/parameters/EntryType"
+        - $ref: "#/components/parameters/StartDate"
+        - $ref: "#/components/parameters/EndDate"
+      responses:
+        "200":
+          description: Entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries]
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Entry"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /entry-counts/by-account/{accountId}:
+    get:
+      tags: [Retrieval]
+      operationId: getEntryCountByAccount
+      summary: Count entries for an account by date range.
+      parameters:
+        - $ref: "#/components/parameters/AccountId"
+        - $ref: "#/components/parameters/StartDate"
+        - $ref: "#/components/parameters/EndDate"
+      responses:
+        "200":
+          description: Entry count.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /entry-counts/by-type/{entryType}:
+    get:
+      tags: [Retrieval]
+      operationId: getEntryCountByType
+      summary: Count entries for an entry type by date range.
+      parameters:
+        - $ref: "#/components/parameters/EntryType"
+        - $ref: "#/components/parameters/StartDate"
+        - $ref: "#/components/parameters/EndDate"
+      responses:
+        "200":
+          description: Entry count.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /integrity-checks:
+    get:
+      tags: [Integrity]
+      operationId: getDynamicSelection
+      summary: Retrieve available integrity checks.
+      responses:
+        "200":
+          description: Integrity check names.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checks]
+                properties:
+                  checks:
+                    type: array
+                    items:
+                      type: string
+        default:
+          $ref: "#/components/responses/Error"
+
+  /integrity-checks/{integrityCheck}:
+    post:
+      tags: [Integrity]
+      operationId: checkIntegrity
+      summary: Run one integrity check.
+      parameters:
+        - name: integrityCheck
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Integrity check result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [passed]
+                properties:
+                  passed:
+                    type: boolean
+        default:
+          $ref: "#/components/responses/Error"
+
+components:
+  securitySchemes:
+    sessionToken:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-session-token
+
+  parameters:
+    LedgerName:
+      name: ledgerName
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/AccountId"
+    TransactionId:
+      name: transactionId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/TransactionId"
+    EntryType:
+      name: entryType
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/EntryType"
+    StartDate:
+      name: startDate
+      in: query
+      required: true
+      schema:
+        $ref: "#/components/schemas/Date"
+    EndDate:
+      name: endDate
+      in: query
+      required: true
+      schema:
+        $ref: "#/components/schemas/Date"
+
+  responses:
+    Error:
+      description: Error response.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    OpenSessionRequest:
+      type: object
+      required: [ledgerName, loginName, password]
+      properties:
+        ledgerName:
+          type: string
+          minLength: 1
+        loginName:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+          format: password
+
+    Session:
+      type: object
+      required: [token, ledgerName]
+      properties:
+        token:
+          type: string
+          minLength: 1
+        ledgerName:
+          type: string
+          minLength: 1
+        expiresAt:
+          type: string
+          format: date-time
+
+    Profile:
+      type: object
+      required: [ledgerName, capabilities]
+      properties:
+        ledgerName:
+          type: string
+          minLength: 1
+        capabilities:
+          type: array
+          items:
+            type: string
+            enum:
+              - bookKeeping
+              - retrieval
+              - integrity
+              - ledgerLifecycle
+              - facilityLifecycle
+
+    Ledger:
+      type: object
+      required: [name, chartKind]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        chartKind:
+          $ref: "#/components/schemas/ChartKind"
+        currency:
+          $ref: "#/components/schemas/CurrencyMnemonic"
+
+    CreateLedgerRequest:
+      type: object
+      required: [newLedgerName, chartOfAccountsSchema]
+      properties:
+        newLedgerName:
+          type: string
+          minLength: 1
+        chartOfAccountsSchema:
+          $ref: "#/components/schemas/ChartKind"
+        copiedLedgerNameForSchema:
+          type: string
+          description: Required when chartOfAccountsSchema is EXISTING_CHART.
+
+    CreateAccountRequest:
+      type: object
+      required: [accountId, description, isControlAccount]
+      properties:
+        accountId:
+          $ref: "#/components/schemas/AccountId"
+        description:
+          type: string
+          minLength: 1
+        isControlAccount:
+          type: boolean
+
+    ModifyAccountRequest:
+      type: object
+      required: [description]
+      properties:
+        description:
+          type: string
+          minLength: 1
+
+    AccountInfo:
+      type: object
+      required: [accountId, description]
+      properties:
+        accountId:
+          $ref: "#/components/schemas/AccountId"
+        description:
+          type: string
+
+    Account:
+      type: object
+      required: [accountInfo, isControlAccount, balance]
+      properties:
+        accountInfo:
+          $ref: "#/components/schemas/AccountInfo"
+        isControlAccount:
+          type: boolean
+        balance:
+          $ref: "#/components/schemas/Money"
+
+    TransactionInfo:
+      type: object
+      required: [transactionId]
+      properties:
+        transactionId:
+          $ref: "#/components/schemas/TransactionId"
+        voucherRef:
+          type: string
+        voucherDate:
+          $ref: "#/components/schemas/Date"
+        actualTransactionDate:
+          $ref: "#/components/schemas/Date"
+        periodId:
+          $ref: "#/components/schemas/PeriodId"
+
+    Transaction:
+      type: object
+      required: [transactionInfo, entries]
+      properties:
+        transactionInfo:
+          $ref: "#/components/schemas/TransactionInfo"
+        entries:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/Entry"
+
+    PostTransactionRequest:
+      type: object
+      required: [transaction]
+      properties:
+        transaction:
+          $ref: "#/components/schemas/Transaction"
+
+    PostTransactionListRequest:
+      type: object
+      required: [transactions]
+      properties:
+        transactions:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Transaction"
+
+    Entry:
+      type: object
+      required:
+        - transactionId
+        - entryId
+        - entryDate
+        - entryType
+        - accountId
+        - originalAmount
+        - amount
+        - debitOrCredit
+      properties:
+        transactionId:
+          $ref: "#/components/schemas/TransactionId"
+        entryId:
+          $ref: "#/components/schemas/EntryId"
+        entryDate:
+          $ref: "#/components/schemas/Date"
+        entryType:
+          $ref: "#/components/schemas/EntryType"
+        accountId:
+          $ref: "#/components/schemas/AccountId"
+        originalAmount:
+          $ref: "#/components/schemas/Money"
+        amount:
+          $ref: "#/components/schemas/Money"
+        debitOrCredit:
+          $ref: "#/components/schemas/DebitOrCredit"
+        description:
+          type: string
+        voucherRef:
+          type: string
+
+    EntryTypeInfo:
+      type: object
+      required: [type, description]
+      properties:
+        type:
+          $ref: "#/components/schemas/EntryType"
+        description:
+          type: string
+
+    CountResponse:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+          minimum: 0
+
+    Money:
+      type: object
+      required: [amount, currency]
+      description: |
+        Exact monetary amount. The amount is encoded as a canonical decimal string
+        until the implementation finalizes minor-unit scale rules per currency.
+      properties:
+        amount:
+          type: string
+          pattern: "^-?[0-9]+(\\.[0-9]+)?$"
+          examples: ["123.45", "0", "-10.00"]
+        currency:
+          $ref: "#/components/schemas/CurrencyMnemonic"
+
+    Date:
+      type: string
+      format: date-time
+      description: |
+        Date/time value used for ledger retrieval and posting. The implementation
+        may later add explicit support for the specification's not-set date flag.
+
+    AccountId:
+      type: string
+      minLength: 1
+
+    TransactionId:
+      type: string
+      minLength: 1
+
+    EntryId:
+      type: string
+      minLength: 1
+
+    EntryType:
+      type: string
+      minLength: 1
+
+    PeriodId:
+      type: string
+
+    CurrencyMnemonic:
+      type: string
+      minLength: 3
+      maxLength: 16
+      examples: [USD, EUR, GBP]
+
+    ChartKind:
+      type: string
+      enum:
+        - EMPTY_CHART
+        - DEFAULT_CHART
+        - EXISTING_CHART
+
+    DebitOrCredit:
+      type: string
+      enum:
+        - CREDIT
+        - DEBIT
+
+    APIError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+        message:
+          type: string
+        field:
+          type: string
+          description: Optional request field path related to the error.
+        position:
+          type: integer
+          minimum: 0
+          description: Optional zero-based list position for list operation errors.
+
+    ErrorCode:
+      type: string
+      enum:
+        - BadDate
+        - BadChartKind
+        - BadTransaction
+        - BadTransactionsInList
+        - BadEntryType
+        - BadEntryTypeInfoList
+        - BadCurrencyMnemonic
+        - BadAccountId
+        - BadTransId
+        - CannotRemove
+        - PermissionDenied
+        - UnknownLedger
+        - BadIntegritySelection
+        - BadAccountName
