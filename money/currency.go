@@ -5,12 +5,13 @@ package money
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"unicode"
+
+	"github.com/maloquacious/gl/cerrs"
 )
 
 // Currency identifies a currency or accounting unit.
@@ -24,15 +25,15 @@ const (
 	KWD Currency = "KWD"
 )
 
-var (
+const (
 	// ErrCurrencyMismatch is returned when arithmetic combines unlike currencies.
-	ErrCurrencyMismatch = errors.New("currency mismatch")
+	ErrCurrencyMismatch = cerrs.Error("currency mismatch")
 
 	// ErrInvalidCurrency is returned when a currency code is unknown or malformed.
-	ErrInvalidCurrency = errors.New("invalid currency")
+	ErrInvalidCurrency = cerrs.Error("invalid currency")
 
 	// ErrInvalidAmount is returned when a decimal amount cannot be represented exactly.
-	ErrInvalidAmount = errors.New("invalid amount")
+	ErrInvalidAmount = cerrs.Error("invalid amount")
 )
 
 var registry = struct {
